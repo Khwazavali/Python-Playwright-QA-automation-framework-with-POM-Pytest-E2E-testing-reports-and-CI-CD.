@@ -1,0 +1,23 @@
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment variables
+.env
+.env.*
+
+# Generated test reports
+reports/
+test-results/
+playwright-report/
+
+# Editor settings
+.vscode/
+
+# Local debugging artifacts
+homepage_debug.png
