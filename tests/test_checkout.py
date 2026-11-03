@@ -10,9 +10,10 @@ def money(text):
     return Decimal(text.split("$")[-1].strip())
 
 
+
 def test_checkout_financial_integrity(page: Page):
 
-    # Step 1: Login
+    # Step 1: Log in
     login_page = LoginPage(page)
     login_page.navigate()
     login_page.login("standard_user", "secret_sauce")
@@ -21,7 +22,12 @@ def test_checkout_financial_integrity(page: Page):
         "https://www.saucedemo.com/inventory.html"
     )
 
-    # Step 2: Select two products
+    # Step 2: Create reusable page objects
+    inventory_page = InventoryPage(page)
+    cart_page = CartPage(page)
+    checkout_page = CheckoutPage(page)
+
+    # Step 3: Define our test products
     selected_products = [
         "Sauce Labs Backpack",
         "Sauce Labs Bike Light"
@@ -29,100 +35,87 @@ def test_checkout_financial_integrity(page: Page):
 
     expected_prices = {}
 
+    # Step 4: Capture inventory prices and add products
     for product_name in selected_products:
 
-        product = page.locator(".inventory_item").filter(
-            has=page.locator(
-                ".inventory_item_name",
-                has_text=product_name
-            )
+        expected_prices[product_name] = (
+            inventory_page.get_product_price(product_name)
         )
 
-        # Read product price before adding it
-        price_text = product.locator(
-            ".inventory_item_price"
-        ).inner_text()
+        inventory_page.add_product_to_cart(product_name)
 
-        expected_prices[product_name] = money(price_text)
+    inventory_page.verify_cart_count(2)
 
-        product.get_by_role(
-            "button", name="Add to cart"
-        ).click()
+    # Step 5: Navigate to cart
+    inventory_page.open_cart()
 
-    # Step 3: Verify cart quantity
-    expect(
-        page.locator(".shopping_cart_badge")
-    ).to_have_text("2")
+    cart_page.verify_item_count(2)
 
-    # Step 4: Open cart
-    page.locator(".shopping_cart_link").click()
+    for product_name in selected_products:
+        cart_page.verify_product_present(product_name)
 
-    expect(page.locator(".cart_item")).to_have_count(2)
+    # Step 6: Start checkout
+    cart_page.proceed_to_checkout()
 
-    # Step 5: Proceed to checkout
-    page.get_by_role("button", name="Checkout").click()
+    expect(page).to_have_url(
+        "https://www.saucedemo.com/checkout-step-one.html"
+    )
 
-    # Step 6: Enter checkout details
-    page.get_by_placeholder("First Name").fill("Test")
-    page.get_by_placeholder("Last Name").fill("Customer")
-    page.get_by_placeholder("Zip/Postal Code").fill("75001")
+    # Step 7: Enter checkout information
+    checkout_page.enter_customer_information(
+        "Test", "Customer", "75001"
+    )
 
-    page.get_by_role("button", name="Continue").click()
+    checkout_page.continue_checkout()
 
-    # Step 7: Verify each product and its price
+    expect(page).to_have_url(
+        "https://www.saucedemo.com/checkout-step-two.html"
+    )
+
+    # Step 8: Verify each product's checkout price
     for product_name, expected_price in expected_prices.items():
 
-        item = page.locator(".cart_item").filter(
-            has_text=product_name
-        )
-
-        expect(item).to_have_count(1)
-
-        actual_price = money(
-            item.locator(".inventory_item_price").inner_text()
+        actual_price = checkout_page.get_item_price(
+            product_name
         )
 
         assert actual_price == expected_price, (
-            f"{product_name}: expected {expected_price}, "
-            f"but found {actual_price}"
+            f"{product_name}: expected ${expected_price}, "
+            f"actual ${actual_price}"
         )
+
+        item = checkout_page.get_checkout_item(product_name)
+
+        expect(item).to_have_count(1)
 
         expect(
             item.locator(".cart_quantity")
         ).to_have_text("1")
 
-    # Step 8: Calculate the expected subtotal
+    # Step 9: Calculate expected subtotal independently
     expected_subtotal = sum(
-        expected_prices.values(), Decimal("0.00")
+        expected_prices.values(),
+        Decimal("0.00")
     )
 
-    # Step 9: Read displayed subtotal
-    displayed_subtotal = money(
-        page.locator(".summary_subtotal_label").inner_text()
+    # Step 10: Read actual values from checkout
+    actual_subtotal = checkout_page.get_subtotal()
+    actual_tax = checkout_page.get_tax()
+    actual_total = checkout_page.get_total()
+
+    # Step 11: Verify financial accuracy
+    assert actual_subtotal == expected_subtotal, (
+        f"Subtotal mismatch: expected ${expected_subtotal}, "
+        f"actual ${actual_subtotal}"
     )
 
-    assert displayed_subtotal == expected_subtotal, (
-        f"Subtotal mismatch: expected {expected_subtotal}, "
-        f"actual {displayed_subtotal}"
+    expected_total = expected_subtotal + actual_tax
+
+    assert actual_total == expected_total, (
+        f"Total mismatch: expected ${expected_total}, "
+        f"actual ${actual_total}"
     )
 
-    # Step 10: Read displayed tax
-    displayed_tax = money(
-        page.locator(".summary_tax_label").inner_text()
-    )
-
-    # Step 11: Read displayed total
-    displayed_total = money(
-        page.locator(".summary_total_label").inner_text()
-    )
-
-    # Step 12: Verify total calculation
-    expected_total = expected_subtotal + displayed_tax
-
-    assert displayed_total == expected_total, (
-        f"Total mismatch: expected {expected_total}, "
-        f"actual {displayed_total}"
-    )
     
     
 @pytest.mark.parametrize(
