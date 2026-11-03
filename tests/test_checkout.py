@@ -1,14 +1,13 @@
+
 import pytest
 from decimal import Decimal
 
 from playwright.sync_api import Page, expect
+
 from pages.login_page import LoginPage
-
-
-def money(text):
-    """Extract a currency amount as a precise Decimal."""
-    return Decimal(text.split("$")[-1].strip())
-
+from pages.inventory_page import InventoryPage
+from pages.cart_page import CartPage
+from pages.checkout_page import CheckoutPage
 
 
 def test_checkout_financial_integrity(page: Page):
