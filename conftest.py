@@ -6,22 +6,27 @@ from playwright.sync_api import Page, expect
 from pages.login_page import LoginPage
 
 
-@pytest.fixture
-def logged_in_page(page: Page) -> Page:
+@pytest.fixture(scope="function")
+def logged_in_page(page: Page):
 
-    # Create LoginPage using Pytest's browser page
+    # SETUP: Runs before the test
     login_page = LoginPage(page)
 
-    # Open the application
     login_page.navigate()
 
-    # Log in as the standard test user
-    login_page.login("standard_user", "secret_sauce")
+    login_page.login(
+        "standard_user",
+        "secret_sauce"
+    )
 
-    # Verify login succeeded before returning the page
     expect(page).to_have_url(
         "https://www.saucedemo.com/inventory.html"
     )
 
-    # Give the authenticated page to the test
-    return page
+    print("\n[SETUP] User logged in successfully")
+
+    # TEST EXECUTION: Give the page to the test
+    yield page
+
+    # TEARDOWN: Runs after the test
+    print("\n[TEARDOWN] Authenticated test completed")
