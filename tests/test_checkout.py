@@ -130,6 +130,7 @@ def test_checkout_financial_integrity(page: Page):
         "missing_postal_code"
     ]
 )
+
 def test_checkout_required_fields(
     page: Page,
     first_name,
@@ -137,52 +138,52 @@ def test_checkout_required_fields(
     postal_code,
     expected_error
 ):
-
     # Step 1: Login
     login_page = LoginPage(page)
     login_page.navigate()
     login_page.login("standard_user", "secret_sauce")
 
-    expect(page).to_have_url(
-        "https://www.saucedemo.com/inventory.html"
+    # Step 2: Initialize Page Objects
+    inventory_page = InventoryPage(page)
+    cart_page = CartPage(page)
+    checkout_page = CheckoutPage(page)
+
+    # Step 3: Add one product
+    inventory_page.add_product_to_cart(
+        "Sauce Labs Backpack"
     )
 
-    # Step 2: Add a product
-    page.locator(
-        "[data-test='add-to-cart-sauce-labs-backpack']"
-    ).click()
+    inventory_page.verify_cart_count(1)
+
+    # Step 4: Open cart and start checkout
+    inventory_page.open_cart()
+    cart_page.proceed_to_checkout()
+
+    expect(page).to_have_url(
+        "https://www.saucedemo.com/checkout-step-one.html"
+    )
+
+    # Step 5: Enter parameterized test data
+    checkout_page.enter_customer_information(
+        first_name,
+        last_name,
+        postal_code
+    )
+
+    checkout_page.continue_checkout()
+
+    # Step 6: Verify the correct validation error
+    expect(
+        checkout_page.error_message
+    ).to_be_visible()
 
     expect(
-        page.locator(".shopping_cart_badge")
-    ).to_have_text("1")
+        checkout_page.error_message
+    ).to_contain_text(expected_error)
 
-    # Step 3: Open cart
-    page.locator(".shopping_cart_link").click()
-
-    # Step 4: Start checkout
-    page.get_by_role("button", name="Checkout").click()
-
-    # Step 5: Verify checkout information page
+    # Step 7: Verify the user remains on checkout step one
     expect(page).to_have_url(
         "https://www.saucedemo.com/checkout-step-one.html"
     )
 
-    # Step 6: Fill checkout information
-    page.get_by_placeholder("First Name").fill(first_name)
-    page.get_by_placeholder("Last Name").fill(last_name)
-    page.get_by_placeholder("Zip/Postal Code").fill(postal_code)
-
-    # Step 7: Submit
-    page.get_by_role("button", name="Continue").click()
-
-    # Step 8: Verify the expected validation error
-    error_message = page.locator("[data-test='error']")
-
-    expect(error_message).to_be_visible()
-    expect(error_message).to_contain_text(expected_error)
-
-    # Step 9: Verify checkout did not continue
-    expect(page).to_have_url(
-        "https://www.saucedemo.com/checkout-step-one.html"
-    )
 
