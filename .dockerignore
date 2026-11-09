@@ -1,0 +1,17 @@
+
+.venv/
+.git/
+.github/
+.pytest_cache/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+reports/
+test-results/
+visual_baselines/
+
+.env
+.env.*
+auth_state.json
+*.log
