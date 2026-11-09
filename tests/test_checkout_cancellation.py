@@ -1,6 +1,10 @@
 
 from playwright.sync_api import Page, expect
+
 from pages.login_page import LoginPage
+from pages.inventory_page import InventoryPage
+from pages.cart_page import CartPage
+from pages.checkout_page import CheckoutPage
 
 
 def test_checkout_cancellation_preserves_cart(page: Page):
@@ -14,85 +18,75 @@ def test_checkout_cancellation_preserves_cart(page: Page):
         "https://www.saucedemo.com/inventory.html"
     )
 
-    # Step 2: Define products to purchase
+    # Step 2: Create Page Object instances
+    inventory_page = InventoryPage(page)
+    cart_page = CartPage(page)
+    checkout_page = CheckoutPage(page)
+
+    # Step 3: Select products
     selected_products = [
         "Sauce Labs Backpack",
         "Sauce Labs Bike Light"
     ]
 
-    # Step 3: Add both products to cart
-    for name in selected_products:
-        product = page.locator(".inventory_item").filter(
-            has=page.locator(
-                ".inventory_item_name",
-                has_text=name
-            )
-        )
+    for product_name in selected_products:
+        inventory_page.add_product_to_cart(product_name)
 
-        expect(product).to_have_count(1)
+    inventory_page.verify_cart_count(2)
 
-        product.get_by_role(
-            "button", name="Add to cart"
-        ).click()
-
-    # Step 4: Verify cart badge
-    cart_badge = page.locator(".shopping_cart_badge")
-    expect(cart_badge).to_have_text("2")
-
-    # Step 5: Open shopping cart
-    page.locator(".shopping_cart_link").click()
+    # Step 4: Open cart
+    inventory_page.open_cart()
 
     expect(page).to_have_url(
         "https://www.saucedemo.com/cart.html"
     )
 
-    # Step 6: Begin checkout
-    page.get_by_role("button", name="Checkout").click()
+    cart_page.verify_item_count(2)
+
+    # Step 5: Begin checkout
+    cart_page.proceed_to_checkout()
 
     expect(page).to_have_url(
         "https://www.saucedemo.com/checkout-step-one.html"
     )
 
-    # Step 7: Enter valid checkout details
-    page.get_by_placeholder("First Name").fill("Test")
-    page.get_by_placeholder("Last Name").fill("Customer")
-    page.get_by_placeholder("Zip/Postal Code").fill("75001")
+    # Step 6: Complete customer information
+    checkout_page.enter_customer_information(
+        "Test", "Customer", "75001"
+    )
 
-    page.get_by_role("button", name="Continue").click()
+    checkout_page.continue_checkout()
 
     expect(page).to_have_url(
         "https://www.saucedemo.com/checkout-step-two.html"
     )
 
-    # Step 8: Cancel checkout instead of finishing
-    page.get_by_role("button", name="Cancel").click()
+    # Step 7: Cancel from the checkout overview
+    checkout_page.cancel_checkout()
 
-    # Step 9: Verify return to inventory
+    # SauceDemo returns to inventory after cancellation
     expect(page).to_have_url(
         "https://www.saucedemo.com/inventory.html"
     )
 
-    # Step 10: Verify cart badge still shows 2
-    expect(cart_badge).to_have_text("2")
+    # Step 8: Verify cart badge still shows two products
+    inventory_page.verify_cart_count(2)
 
-    # Step 11: Open cart again
-    page.locator(".shopping_cart_link").click()
+    # Step 9: Reopen the cart
+    inventory_page.open_cart()
 
-    # Step 12: Verify original products remain
-    expect(page.locator(".cart_item")).to_have_count(2)
-
-    for name in selected_products:
-        item = page.locator(".cart_item").filter(
-            has=page.locator(
-                ".inventory_item_name",
-                has_text=name
-            )
-        )
-
-        expect(item).to_have_count(1)
-        expect(item.locator(".cart_quantity")).to_have_text("1")
-
-    # Step 13: Verify no order completion page appeared
-    expect(page).not_to_have_url(
-        "https://www.saucedemo.com/checkout-complete.html"
+    expect(page).to_have_url(
+        "https://www.saucedemo.com/cart.html"
     )
+
+    # Step 10: Verify products were preserved
+    cart_page.verify_item_count(2)
+
+    for product_name in selected_products:
+        cart_page.verify_product_present(product_name)
+
+        item = cart_page.get_cart_item(product_name)
+
+        expect(
+            item.locator(".cart_quantity")
+        ).to_have_text("1")
